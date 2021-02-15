@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore: 'README.md'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+
+    env:
+      GitHubMail: "rokibhasansagar2014@outlook.com"
+      GitHubName: "rokibhasansagar"
+
+    steps:
+      - name: Set Git Configs & Secrets
+        run: |
+          git config --global user.email ${GitHubMail}
+          git config --global user.name ${GitHubName}
+          git config --global credential.helper store
+          echo "https://${GitHubName}:${{ secrets.GH_TOKEN }}@github.com" > ~/.git-credentials
+      # Checkout The Workflow, Shallow Clone
+      - uses: actions/checkout@v2
+        with:
+          token: "${{ secrets.GH_TOKEN }}"
+          fetch-depth: "1"
+      - name: Cleanup
+        run: |
+          curl -sL https://github.com/rokibhasansagar/slimhub_actions/raw/main/cleanup.sh -O && chmod a+x cleanup.sh
+          ./cleanup.sh &
+      - name: Running Userge
+        timeout-minutes: 300
+        continue-on-error: true
+        run: |
+          mkdir -p userge && cd userge
+          curl -sL https://gist.github.com/${{ secrets.USERGIST_SLUG }}/raw/MySecondUserge.config.env -o config.env
+          curl -sL https://gist.github.com/${{ secrets.USERGIST_SLUG }}/raw/MySecondUserge.docker-compose.yml -o docker-compose.yml
+          docker-compose up -d
+          docker-compose logs -f
+      - name: Trigger another workflow
+        run: |
+          curl -X POST --header "Authorization: token ${{ secrets.GH_TOKEN }}" https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/main.yml/dispatches -d '{"ref":"main"}'
