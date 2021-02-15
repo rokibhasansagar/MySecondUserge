@@ -15,7 +15,7 @@ jobs:
       GitHubName: "rokibhasansagar"
 
     steps:
-      - name: Set Git Configs & Secrets
+      - name: Set Git Config & Token
         run: |
           git config --global user.email ${GitHubMail}
           git config --global user.name ${GitHubName}
@@ -27,18 +27,22 @@ jobs:
           token: "${{ secrets.GH_TOKEN }}"
           fetch-depth: "1"
       - name: Cleanup
-        run: |
-          curl -sL https://github.com/rokibhasansagar/slimhub_actions/raw/main/cleanup.sh -O && chmod a+x cleanup.sh
-          ./cleanup.sh &
+        uses: rokibhasansagar/slimhub_actions@main
       - name: Running Userge
-        timeout-minutes: 300
+        timeout-minutes: 340
         continue-on-error: true
         run: |
-          mkdir -p userge && cd userge
-          curl -sL https://gist.github.com/${{ secrets.USERGIST_SLUG }}/raw/MySecondUserge.config.env -o config.env
-          curl -sL https://gist.github.com/${{ secrets.USERGIST_SLUG }}/raw/MySecondUserge.docker-compose.yml -o docker-compose.yml
+          echo "::group::Prepare Repos"
+          git clone ${{ secrets.USERGEREPO }} bot && cd bot
+          curl -sL ${{ secrets.USERGIST_CONFIG }} -o config.env
+          curl -sL ${{ secrets.USERGIST_COMPOSE }} -o docker-compose.yml
+          echo "::endgroup::"
+          echo "::group::Build Containers"
           docker-compose up -d
+          echo "::endgroup::"
+          echo "::group::Startup Containers"
           docker-compose logs -f
-      - name: Trigger another workflow
+          echo "::endgroup::"
+      - name: Trigger new workflow
         run: |
           curl -X POST --header "Authorization: token ${{ secrets.GH_TOKEN }}" https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/main.yml/dispatches -d '{"ref":"main"}'
